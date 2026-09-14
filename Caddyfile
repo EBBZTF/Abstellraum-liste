@@ -6,30 +6,38 @@
 # vollstaendiger Caddyfile, sondern der Block, der unten an
 # /etc/caddy/Caddyfile drangehaengt wird:
 #
-#   sudo nano /etc/caddy/Caddyfile        # Inhalt hier unten ans Ende
+#   sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak
+#   sudo nano /etc/caddy/Caddyfile        # Inhalt ab ":80 {" ans Ende
 #   sudo caddy validate --config /etc/caddy/Caddyfile
 #   sudo systemctl reload caddy
 #
 # Kein Konflikt mit den bestehenden :8080-Bloecken — anderer Port.
 
-# Nur im Heimnetz, fuer den NFC-Tag an der Schranktuer. Bewusst ausserhalb des
-# Tunnels: cloudflared reicht nur berdi-racing.com an :8080 weiter, dieser
-# Block lauscht separat auf Port 80.
-#
-# Absichtlich ohne `bind 192.168.1.50`. Das waere enger, wuerde die IP aber
-# in die Caddy-Konfiguration einbacken: aendert sie sich, scheitert der
-# Listener und Caddy startet gar nicht mehr — samt berdi-racing.com. Statt
-# dessen: feste DHCP-Reservierung im Router, und Port 80 dort nicht
-# weiterleiten.
 :80 {
-	encode gzip
+	# Ausschliesslich aus dem Heimnetz erreichbar. Sollte im Router noch eine
+	# alte Portweiterleitung auf 80 stehen, landen Anfragen von aussen hier
+	# auf einem 404 statt auf der Kistenliste.
+	#
+	# remote_ip prueft die echte TCP-Quelladresse, nicht einen Header:
+	# X-Forwarded-For laesst sich faelschen, die Verbindung selbst nicht.
+	# Deshalb hier bewusst nicht client_ip.
+	@heimnetz remote_ip private_ranges
 
-	reverse_proxy 127.0.0.1:8091
+	handle @heimnetz {
+		encode gzip
 
-	header {
-		# Safari haelt Seiten sonst fest; eine veraltete Kistenliste ist
-		# schlimmer als eine, die eine Sekunde braucht.
-		Cache-Control "no-store"
-		-Server
+		reverse_proxy 127.0.0.1:8091
+
+		header {
+			# Safari haelt Seiten sonst fest; eine veraltete Kistenliste
+			# ist schlimmer als eine, die eine Sekunde braucht.
+			Cache-Control "no-store"
+			-Server
+		}
+	}
+
+	# Alles andere: nicht einmal zugeben, dass hier etwas liegt.
+	handle {
+		respond 404
 	}
 }

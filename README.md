@@ -222,6 +222,15 @@ It is a `:80` block, so it cannot collide with the existing `:8080` ones. The
 global `auto_https off` is what lets a bare `:80` work without Caddy going off
 to fetch a certificate for it.
 
+**The page is restricted to the home network by Caddy itself.** The block only
+serves requests whose source address is in a private range; everything else gets
+a bare 404. So even if a port-80 forward is still sitting in the router from the
+pre-tunnel days, the inventory is not reachable from the internet.
+
+That check uses `remote_ip`, the real TCP source address — deliberately not
+`client_ip`, which reads `X-Forwarded-For` and can be forged by whoever sends
+the request.
+
 Then, on the Pi:
 
 ```sh
@@ -231,14 +240,20 @@ curl -s http://localhost/ | grep -o 'class="box"' | wc -l    # expect 98
 98 is 92 boxes plus 6 open shelves. `validate` only proves the file parses — this
 proves port 80 actually reaches the app.
 
-**Check the router before reloading.** This is the first thing on the Pi to
-listen on port 80. If a port-80 forward survives from the pre-tunnel DDNS days,
-the inventory goes on the public internet the moment Caddy reloads.
+To confirm it really is closed from outside: find your public address with
+`curl -s https://api.ipify.org`, then open `http://<that address>/` on a phone
+**with Wi-Fi turned off**. You should get nothing. With Wi-Fi back on,
+`http://192.168.1.50/` gives you the inventory.
 
-The block deliberately has no `bind 192.168.1.50`. Restricting it to the LAN
-interface would be tighter, but it would bake the address into Caddy: if the IP
-ever changed, the listener would fail and Caddy would not start — taking
-berdi-racing.com down with it. A DHCP reservation is the better protection.
+A stray port-80 forward in the router is still worth deleting if you find one —
+the tunnel does not use it — but it is no longer what stands between the cellar
+list and the internet.
+
+The block deliberately has no `bind 192.168.1.50`. Restricting the listener to
+the LAN interface sounds tighter but buys nothing here: a router forward
+delivers to exactly that address anyway, so it would not stop one. What it would
+do is bake the IP into Caddy, and if the address ever changed the listener would
+fail and Caddy would not start — taking berdi-racing.com down with it.
 
 ### If you would rather not touch Caddy
 
@@ -252,9 +267,15 @@ Environment=BOXES_HOST=0.0.0.0
 in `boxes.service`, then `sudo systemctl daemon-reload && sudo systemctl restart
 boxes`, and write the tag as `http://192.168.1.50:8091/`.
 
-Nothing is lost by this. The app sends `Cache-Control: no-store` itself — Caddy
-repeating it was belt-and-braces, not a dependency — and the port only ever
-mattered for a URL somebody types, which is not what a tag is for.
+The app sends `Cache-Control: no-store` itself — Caddy repeating it was
+belt-and-braces, not a dependency — and the port only ever mattered for a URL
+somebody types, which is not what a tag is for.
+
+**But this route has no source-address check.** `0.0.0.0` means the app answers
+on every interface to anyone who can reach it, and waitress has no equivalent of
+the `remote_ip` matcher. Then the router really is the only thing keeping the
+inventory off the internet, and a stray forward on 8091 would expose it. If you
+take this route, confirm there is no forward rather than assuming.
 
 ## First-time setup — on the laptop
 

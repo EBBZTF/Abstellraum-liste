@@ -1,0 +1,74 @@
+#!/bin/sh
+#
+# post-receive hook for the bare repo on the Pi.
+#
+# Checks the pushed commit out into the working tree, then restarts the service
+# only when boxes.py changed. A spreadsheet-only push needs no restart: the app
+# checks the file's mtime on every request and re-reads it when it moves.
+#
+# Install: copy to <bare repo>/hooks/post-receive and chmod +x.
+
+# Overridable so the hook can be dry-run against a throwaway repo without
+# editing the file that is actually deployed.
+WORK_TREE=${WORK_TREE:-/home/berdi-websites/abstellraum}
+BRANCH=${BRANCH:-main}
+SERVICE=${SERVICE:-boxes}
+
+GIT_DIR_ABS=$(cd "${GIT_DIR:-.}" && pwd) || exit 1
+unset GIT_DIR
+
+say() { echo "  $*"; }
+
+while read -r oldrev newrev refname; do
+	[ "$refname" = "refs/heads/$BRANCH" ] || {
+		say "ignoring $refname (only $BRANCH is deployed)"
+		continue
+	}
+
+	echo ""
+	say "deploying ${newrev%${newrev#???????}} to $WORK_TREE"
+
+	if ! git --git-dir="$GIT_DIR_ABS" --work-tree="$WORK_TREE" checkout -f "$BRANCH"; then
+		say "CHECKOUT FAILED — working tree left untouched, nothing was deployed"
+		exit 1
+	fi
+
+	# First push to this branch: no old revision to compare against, so treat
+	# everything as new and restart.
+	case "$oldrev" in
+	0000000000000000000000000000000000000000 | "")
+		changed_code=yes
+		say "first push to $BRANCH"
+		;;
+	*)
+		changed=$(git --git-dir="$GIT_DIR_ABS" diff --name-only "$oldrev" "$newrev")
+		if echo "$changed" | grep -qx 'boxes\.py'; then
+			changed_code=yes
+		else
+			changed_code=no
+		fi
+		;;
+	esac
+
+	if [ "$changed_code" = no ]; then
+		say "boxes.py unchanged — no restart needed"
+		say "the app picks the new spreadsheet up on the next request"
+		continue
+	fi
+
+	say "boxes.py changed — restarting $SERVICE"
+	if sudo -n systemctl restart "$SERVICE" 2>/dev/null; then
+		say "$SERVICE restarted"
+	else
+		# Never fail the push over this. The code is already on disk; it just
+		# needs the old process replaced.
+		say ""
+		say "RESTART FAILED — the new code is deployed but not running yet."
+		say "Run this on the Pi:"
+		say ""
+		say "    sudo systemctl restart $SERVICE"
+		say ""
+	fi
+done
+
+exit 0

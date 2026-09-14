@@ -1,0 +1,22 @@
+# Abstellraum inventory — port 80 in front of waitress on 8091,
+# so the NFC tag can carry a bare http://192.168.1.50/ with no port.
+#
+# Caddy already runs on this Pi and already has a config. Do NOT copy this
+# file over /etc/caddy/Caddyfile — read the existing one first and merge.
+# See README.md → "Caddy on the Pi" for the exact steps.
+#
+# Port 8080 on loopback is already taken by Caddy itself; this app uses 8091.
+
+:80 {
+	encode gzip
+
+	header {
+		# Safari holds on to pages hard. A stale inventory — box 12 says
+		# Plane schwarz when it now says Zeltheringe — is worse than a
+		# page that takes another 200 ms to arrive.
+		Cache-Control "no-store"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:8091
+}

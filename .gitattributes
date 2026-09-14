@@ -1,0 +1,5 @@
+# A .xlsx is a zip archive. Diffing it produces noise and merging it produces
+# a corrupt workbook, so git must treat it as an opaque blob.
+*.xlsx binary
+*.xlsm binary
+*.xls  binary

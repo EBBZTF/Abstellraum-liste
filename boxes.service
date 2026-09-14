@@ -1,0 +1,31 @@
+[Unit]
+Description=Abstellraum inventory
+Documentation=https://github.com/berdi/abstellraum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=berdi-websites
+Group=berdi-websites
+WorkingDirectory=/home/berdi-websites/abstellraum
+
+Environment=BOXES_SHEET=/home/berdi-websites/abstellraum/boxes.xlsx
+Environment=BOXES_HOST=127.0.0.1
+Environment=BOXES_PORT=8091
+
+ExecStart=/home/berdi-websites/abstellraum/.venv/bin/python /home/berdi-websites/abstellraum/boxes.py
+
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -96,7 +96,7 @@ def read_shelves(worksheet):
                 contents.append(item)
         if contents:
             letter = column[0].column_letter
-            shelves.append({"number": letter, "shelf": "Offenes Regal", "items": contents})
+            shelves.append({"number": letter, "shelf": "offen", "items": contents})
     return shelves
 
 
@@ -130,6 +130,8 @@ def haystack(entry, kind):
     parts = [entry["number"], entry["shelf"], *entry["items"]]
     if kind == "box":
         parts += ["box " + entry["number"], "k" + entry["number"], "k " + entry["number"]]
+    if kind == "shelf":
+        parts.append("offenes regal")
     if not entry["items"]:
         parts.append("leer")
 
@@ -222,46 +224,62 @@ h2 {
   border-bottom: 1px solid var(--rule);
 }
 
+/* Box | Regal | Inhalt, plus a hanging count. The header row and every
+   box row share these tracks, so the columns line up down the page. */
+:root {
+  --col-box: 2.8rem;
+  --col-regal: 4.4rem;
+  --col-gap: 0.7rem;
+}
+.headrow, .sum {
+  display: grid;
+  grid-template-columns: var(--col-box) var(--col-regal) 1fr auto;
+  gap: 0 var(--col-gap);
+  width: 100%;
+  text-align: left;
+}
+.headrow {
+  padding: 1.1rem 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+}
 .box { border-bottom: 1px solid var(--rule); }
 .sum {
-  display: grid;
-  grid-template-columns: 3.3rem 1fr auto;
   align-items: baseline;
-  gap: 0 0.85rem;
-  width: 100%;
   min-height: 64px;
   padding: 0.85rem 0;
   font: inherit;
   color: inherit;
-  text-align: left;
   background: none;
   border: 0;
   cursor: pointer;
 }
 .num {
-  grid-row: 1 / span 2;
-  align-self: center;
   font-size: 1.6rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 .shelf {
-  grid-column: 2 / span 2;
   font-size: 0.83rem;
   font-weight: 600;
   color: var(--accent);
 }
-.preview { grid-column: 2; padding-top: 0.12rem; }
 .preview.leer { color: var(--muted); font-style: italic; }
 .more {
-  grid-column: 3;
-  align-self: center;
   color: var(--muted);
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
-.items { display: none; margin: 0; padding: 0 0 1rem 4.15rem; list-style: none; }
+/* Opened items hang under the Inhalt column, not under the box number. */
+.items {
+  display: none;
+  margin: 0;
+  padding: 0 0 1rem calc(var(--col-box) + var(--col-regal) + var(--col-gap) * 2);
+  list-style: none;
+}
 .box.open .items { display: block; }
 .items li { padding: 0.38rem 0; }
 .items li::before { content: "– "; color: var(--muted); }
@@ -365,6 +383,11 @@ def esc(value):
     return html.escape(str(value), quote=True)
 
 
+HEADROW = ('<div class="headrow" aria-hidden="true">'
+           "<span>Box</span><span>Regal</span><span>Inhalt</span><span></span>"
+           "</div>")
+
+
 def render_entry(entry, kind):
     number = esc(entry["number"])
     shelf = esc(entry["shelf"]) if entry["shelf"] else "ohne Regal"
@@ -416,12 +439,13 @@ def render_page(boxes, shelves, stand):
         '<p class="count" id="count" role="status">%d Einträge</p>' % total,
         "</div>",
         "<section>",
+        HEADROW,
     ]
     parts += [render_entry(box, "box") for box in boxes]
     parts.append("</section>")
 
     if shelves:
-        parts.append("<section><h2>Offene Regale</h2>")
+        parts.append("<section><h2>Offene Regale</h2>" + HEADROW)
         parts += [render_entry(shelf, "shelf") for shelf in shelves]
         parts.append("</section>")
 

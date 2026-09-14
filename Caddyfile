@@ -1,22 +1,35 @@
-# Abstellraum inventory — port 80 in front of waitress on 8091,
-# so the NFC tag can carry a bare http://192.168.1.50/ with no port.
+# Abstellraum-Inventar — Caddy-Block fuer den Pi.
 #
-# Caddy already runs on this Pi and already has a config. Do NOT copy this
-# file over /etc/caddy/Caddyfile — read the existing one first and merge.
-# See README.md → "Caddy on the Pi" for the exact steps.
+# ANHAENGEN, NICHT ERSETZEN. Auf dem Pi laeuft Caddy bereits hinter einem
+# Cloudflare Tunnel: global auto_https off, gebunden an 127.0.0.1:8080, von
+# aussen ausschliesslich ueber den Tunnel erreichbar. Diese Datei ist kein
+# vollstaendiger Caddyfile, sondern der Block, der unten an
+# /etc/caddy/Caddyfile drangehaengt wird:
 #
-# Port 8080 on loopback is already taken by Caddy itself; this app uses 8091.
+#   sudo nano /etc/caddy/Caddyfile        # Inhalt hier unten ans Ende
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Kein Konflikt mit den bestehenden :8080-Bloecken — anderer Port.
 
+# Nur im Heimnetz, fuer den NFC-Tag an der Schranktuer. Bewusst ausserhalb des
+# Tunnels: cloudflared reicht nur berdi-racing.com an :8080 weiter, dieser
+# Block lauscht separat auf Port 80.
+#
+# Absichtlich ohne `bind 192.168.1.50`. Das waere enger, wuerde die IP aber
+# in die Caddy-Konfiguration einbacken: aendert sie sich, scheitert der
+# Listener und Caddy startet gar nicht mehr — samt berdi-racing.com. Statt
+# dessen: feste DHCP-Reservierung im Router, und Port 80 dort nicht
+# weiterleiten.
 :80 {
 	encode gzip
 
+	reverse_proxy 127.0.0.1:8091
+
 	header {
-		# Safari holds on to pages hard. A stale inventory — box 12 says
-		# Plane schwarz when it now says Zeltheringe — is worse than a
-		# page that takes another 200 ms to arrive.
+		# Safari haelt Seiten sonst fest; eine veraltete Kistenliste ist
+		# schlimmer als eine, die eine Sekunde braucht.
 		Cache-Control "no-store"
 		-Server
 	}
-
-	reverse_proxy 127.0.0.1:8091
 }

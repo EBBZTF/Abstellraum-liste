@@ -9,8 +9,8 @@ modification time changes, the page is rebuilt on the next request. Editing the
 sheet never requires a restart, and between edits the rendered page is cached
 and served in about a millisecond.
 
-- **Page:** http://192.168.1.50/
-- **Pi:** `berdi-websites@192.168.1.50`, app on `127.0.0.1:8091`, Caddy in front on port 80
+- **Page:** http://192.168.1.149/
+- **Pi:** `berdi-websites@192.168.1.149`, app on `127.0.0.1:8091`, Caddy in front on port 80
 - **Checkout on the Pi:** `/home/berdi-websites/abstellraum`, a clone of this repo
 - **Deploy:** push to GitHub, then pull on the Pi
 
@@ -40,7 +40,7 @@ and served in about a millisecond.
 4. Pull it onto the Pi — one line from the laptop:
 
    ```sh
-   ssh berdi-websites@192.168.1.50 'cd ~/abstellraum && git pull --ff-only'
+   ssh berdi-websites@192.168.1.149 'cd ~/abstellraum && git pull --ff-only'
    ```
 
 That is the whole loop for a spreadsheet edit. **No restart:** the app checks the
@@ -54,7 +54,7 @@ stop rather than quietly commit a merge on the Pi.
 Only if you changed **`boxes.py`** does anything need restarting:
 
 ```sh
-ssh berdi-websites@192.168.1.50 'cd ~/abstellraum && git pull --ff-only && sudo systemctl restart boxes'
+ssh berdi-websites@192.168.1.149 'cd ~/abstellraum && git pull --ff-only && sudo systemctl restart boxes'
 ```
 
 ---
@@ -77,7 +77,7 @@ git log --oneline -- boxes.xlsx        # every version of the sheet
 git checkout <sha> -- boxes.xlsx       # restore the sheet as of that commit
 git commit -m "Tabelle zurück auf <sha>"
 git push
-ssh berdi-websites@192.168.1.50 'cd ~/abstellraum && git pull --ff-only'
+ssh berdi-websites@192.168.1.149 'cd ~/abstellraum && git pull --ff-only'
 ```
 
 **Not sure which version you want** — open an old one without touching the
@@ -174,7 +174,7 @@ install -m 755 ~/abstellraum/deploy/post-receive ~/abstellraum.git/hooks/post-re
 
 ```sh
 # on the laptop
-git remote add pi berdi-websites@192.168.1.50:/home/berdi-websites/abstellraum.git
+git remote add pi berdi-websites@192.168.1.149:/home/berdi-websites/abstellraum.git
 git push pi main
 ```
 
@@ -195,9 +195,18 @@ to run.
 
 **6. Pin the Pi's address**
 
-The NFC tag will contain `192.168.1.50`. Give the Pi a DHCP reservation in the
-router so that address never moves — otherwise the tag stops working one day
-for no visible reason.
+Confirm what it actually is — do not trust this README:
+
+```sh
+hostname -I        # first value is the LAN address
+```
+
+The NFC tag hard-codes that address, so give the Pi a DHCP reservation in the
+router and it will never move. Without one, the tag stops working some day for
+no visible reason, and the failure looks exactly like the app being broken.
+
+If the address ever does change, the tag is the only thing that needs
+rewriting — the app, the service and the Caddy block are all address-independent.
 
 ---
 
@@ -243,13 +252,13 @@ proves port 80 actually reaches the app.
 To confirm it really is closed from outside: find your public address with
 `curl -s https://api.ipify.org`, then open `http://<that address>/` on a phone
 **with Wi-Fi turned off**. You should get nothing. With Wi-Fi back on,
-`http://192.168.1.50/` gives you the inventory.
+`http://192.168.1.149/` gives you the inventory.
 
 A stray port-80 forward in the router is still worth deleting if you find one —
 the tunnel does not use it — but it is no longer what stands between the cellar
 list and the internet.
 
-The block deliberately has no `bind 192.168.1.50`. Restricting the listener to
+The block deliberately has no `bind 192.168.1.149`. Restricting the listener to
 the LAN interface sounds tighter but buys nothing here: a router forward
 delivers to exactly that address anyway, so it would not stop one. What it would
 do is bake the IP into Caddy, and if the address ever changed the listener would
@@ -265,7 +274,7 @@ Environment=BOXES_HOST=0.0.0.0
 ```
 
 in `boxes.service`, then `sudo systemctl daemon-reload && sudo systemctl restart
-boxes`, and write the tag as `http://192.168.1.50:8091/`.
+boxes`, and write the tag as `http://192.168.1.149:8091/`.
 
 The app sends `Cache-Control: no-store` itself — Caddy repeating it was
 belt-and-braces, not a dependency — and the port only ever mattered for a URL
@@ -298,7 +307,7 @@ Run it locally any time:
 An SSH key saves typing a password on every deploy:
 
 ```sh
-ssh-copy-id berdi-websites@192.168.1.50
+ssh-copy-id berdi-websites@192.168.1.149
 ```
 
 ---
@@ -312,7 +321,7 @@ The NTAG215 tags hold far more than a URL, so there is plenty of room.
 3. Enter the address exactly, with the scheme and the trailing slash:
 
    ```
-   http://192.168.1.50/
+   http://192.168.1.149/
    ```
 
    Use `http://`, not `https://` — there is no certificate on the Pi and Safari
